@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CarbonCut SDK CDN</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.3.1/styles/default.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.3.1/highlight.min.js"></script>
+</head>
+<body>
+    <div style="max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif;">
+        <h1>🌱 CarbonCut SDK</h1>
+        <p>Track your website's carbon emissions in real-time.</p>
+        
+        <h2>Installation</h2>
+        <pre><code class="html">&lt;script 
+  src="https://YOUR_USERNAME.github.io/carboncut-cdn/dist/carboncut.min.js"
+  data-token="YOUR_TRACKER_TOKEN"
+  data-api-url="https://your-api.com/api/v1/events/"
+  data-debug="true"&gt;
+&lt;/script&gt;</code></pre>
+
+        <h2>CDN Links</h2>
+        <ul>
+            <li><strong>GitHub Pages:</strong> <code>https://YOUR_USERNAME.github.io/carboncut-cdn/dist/carboncut.min.js</code></li>
+            <li><strong>JSDelivr:</strong> <code>https://cdn.jsdelivr.net/gh/YOUR_USERNAME/cc-sdk@latest/dist/carboncut.min.js</code></li>
+            <li><strong>NPM:</strong> <code>https://unpkg.com/carboncut-sdk@latest/dist/carboncut.min.js</code></li>
+        </ul>
+
+        <h2>Usage</h2>
+        <pre><code class="javascript">// Track custom event
+window.CarbonCut.trackEvent('button_click', { button: 'subscribe' });
+
+// Get session info
+console.log(window.CarbonCut.getSessionInfo());</code></pre>
+    </div>
+    
+    <script>hljs.highlightAll();</script>
+</body>
+</html>
