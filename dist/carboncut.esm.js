@@ -1,17 +1,10 @@
-/**
- * Get tracker token from URL parameter
- * @returns {string|null} Tracker token
- */
 function getTrackerFromURL() {
   if (typeof window === 'undefined') return null;
   const params = new URLSearchParams(window.location.search);
   return params.get('cc_tracker');
 }
 
-/**
- * Get browser metadata
- * @returns {Object} Browser metadata
- */
+
 function getBrowserMetadata() {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return {};
@@ -29,10 +22,7 @@ function getBrowserMetadata() {
   };
 }
 
-/**
- * Get current page info
- * @returns {Object} Page info
- */
+
 function getPageInfo() {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return {};
@@ -46,24 +36,19 @@ function getPageInfo() {
   };
 }
 
-/**
- * Check if code is running in browser
- * @returns {boolean}
- */
+
 function isBrowser() {
   return typeof window !== 'undefined' && typeof document !== 'undefined';
 }
 
-/**
- * Configuration manager
- */
 class Config {
   constructor() {
     this.defaults = {
       trackerToken: null,
-      apiUrl: 'http://127.0.0.1:8000/api/v1/events/',
+      // Ensure trailing slash is always present
+      apiUrl: 'http://127.0.0.1:8000/api/v1/events/', 
       sessionId: null,
-      pingInterval: 15000, // 15 seconds
+      pingInterval: 15000,
       debug: false,
       autoTrack: true, 
       respectDoNotTrack: true, 
@@ -75,11 +60,7 @@ class Config {
     this.config = { ...this.defaults };
   }
 
-  /**
-   * Initialize configuration
-   * @param {Object} options User options
-   * @returns {boolean} Success status
-   */
+  
   init(options = {}) {
     this.config = {
       ...this.defaults,
@@ -90,10 +71,7 @@ class Config {
     return this.validate();
   }
 
-  /**
-   * Validate configuration
-   * @returns {boolean} Is valid
-   */
+  
   validate() {
     if (!this.config.trackerToken) {
       console.error('CarbonCut: No tracker token provided. Add data-token="YOUR_TOKEN" to script tag.');
@@ -108,36 +86,22 @@ class Config {
     return true;
   }
 
-  /**
-   * Get configuration value
-   * @param {string} key Configuration key
-   * @returns {*} Configuration value
-   */
+  
   get(key) {
     return this.config[key];
   }
 
-  /**
-   * Set configuration value
-   * @param {string} key Configuration key
-   * @param {*} value Configuration value
-   */
+  
   set(key, value) {
     this.config[key] = value;
   }
 
-  /**
-   * Get all configuration
-   * @returns {Object} All configuration
-   */
+  
   getAll() {
     return { ...this.config };
   }
 }
 
-/**
- * Global state management
- */
 class State {
   constructor() {
     this.state = {
@@ -148,35 +112,22 @@ class State {
     };
   }
 
-  /**
-   * Get state value
-   * @param {string} key State key
-   * @returns {*} State value
-   */
+  
   get(key) {
     return this.state[key];
   }
 
-  /**
-   * Set state value
-   * @param {string} key State key
-   * @param {*} value State value
-   */
+  
   set(key, value) {
     this.state[key] = value;
   }
 
-  /**
-   * Increment time spent
-   * @param {number} seconds Seconds to add
-   */
+  
   incrementTimeSpent(seconds) {
     this.state.timeSpent += seconds;
   }
 
-  /**
-   * Reset state
-   */
+  
   reset() {
     this.state = {
       isInitialized: false,
@@ -186,25 +137,18 @@ class State {
     };
   }
 
-  /**
-   * Get all state
-   * @returns {Object} All state
-   */
+  
   getAll() {
     return { ...this.state };
   }
 }
 
-/**
- * Generate a UUID v4
- * @returns {string} UUID
- */
 function generateUUID() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
   
-  // Fallback for older browsers
+ 
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     const r = Math.random() * 16 | 0;
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -212,9 +156,6 @@ function generateUUID() {
   });
 }
 
-/**
- * Session management
- */
 class Session {
   constructor(config, logger) {
     this.config = config;
@@ -222,15 +163,12 @@ class Session {
     this.sessionId = null;
   }
 
-  /**
-   * Start a new session
-   * @returns {string} Session ID
-   */
+  
   start() {
     this.sessionId = generateUUID();
     this.config.set('sessionId', this.sessionId);
     
-    // Store in window for external access
+   
     if (typeof window !== 'undefined') {
       window.__CC_SESSION_ID = this.sessionId;
       window.__CC_TRACKER_TOKEN = this.config.get('trackerToken');
@@ -240,35 +178,24 @@ class Session {
     return this.sessionId;
   }
 
-  /**
-   * Get current session ID
-   * @returns {string|null} Session ID
-   */
+  
   getId() {
     return this.sessionId;
   }
 
-  /**
-   * End current session
-   */
+  
   end() {
     this.logger.log('Session ended:', this.sessionId);
     this.sessionId = null;
     this.config.set('sessionId', null);
   }
 
-  /**
-   * Check if session is active
-   * @returns {boolean} Is active
-   */
+  
   isActive() {
     return this.sessionId !== null;
   }
 }
 
-/**
- * Logger utility with debug mode support
- */
 class Logger {
   constructor(debug = false) {
     this.debug = debug;
@@ -302,9 +229,6 @@ class Logger {
   }
 }
 
-/**
- * API transport layer
- */
 class ApiTransport {
   constructor(config, logger) {
     this.config = config;
@@ -317,9 +241,6 @@ class ApiTransport {
     }
   }
 
-  /**
-   * Setup online/offline listener
-   */
   setupOnlineListener() {
     window.addEventListener('online', () => {
       this.isOnline = true;
@@ -333,11 +254,6 @@ class ApiTransport {
     });
   }
 
-  /**
-   * Send event to API
-   * @param {Object} payload Event payload
-   * @returns {Promise<boolean>} Success status
-   */
   async send(payload) {
     if (!this.isOnline) {
       this.logger.warn('Offline, queueing event');
@@ -348,7 +264,6 @@ class ApiTransport {
     const apiUrl = this.config.get('apiUrl');
     
     try {
-      // Try sendBeacon first (for session_end and critical events)
       if (this.shouldUseSendBeacon(payload.event)) {
         const success = this.sendViaBeacon(apiUrl, payload);
         if (success) {
@@ -357,9 +272,8 @@ class ApiTransport {
         }
       }
 
-      // Fallback to fetch
-      await this.sendViaFetch(apiUrl, payload);
-      this.logger.log('Event sent via fetch:', payload.event);
+      const response = await this.sendViaFetch(apiUrl, payload);
+      this.logger.log('Event sent via fetch:', payload.event, 'Status:', response.status);
       return true;
 
     } catch (error) {
@@ -369,12 +283,6 @@ class ApiTransport {
     }
   }
 
-  /**
-   * Send via sendBeacon
-   * @param {string} url API URL
-   * @param {Object} payload Event payload
-   * @returns {boolean} Success status
-   */
   sendViaBeacon(url, payload) {
     if (typeof navigator === 'undefined' || !navigator.sendBeacon) {
       return false;
@@ -391,44 +299,44 @@ class ApiTransport {
     }
   }
 
-  /**
-   * Send via fetch
-   * @param {string} url API URL
-   * @param {Object} payload Event payload
-   * @returns {Promise<Response>} Fetch response
-   */
   async sendViaFetch(url, payload) {
-    this.logger.log('Sending via fetch to:', url, payload);
+    if (!url.endsWith('/')) {
+      url = url + '/';
+    }
+    
+    this.logger.log('Sending payload to:', url, payload);
     
     const response = await fetch(url, {
-      method: 'POST',
+      method: 'POST',  // Explicitly set POST
       headers: {
         'Content-Type': 'application/json',
         'X-Tracker-Token': this.config.get('trackerToken')
       },
       body: JSON.stringify(payload),
-      keepalive: true
+      keepalive: true,
+      redirect: 'error'  // Don't follow redirects that might change method
     });
 
-    if (!response.ok) {
+    // Handle responses
+    if (response.status === 202 || response.status === 200) {
+      return response;
+    } else if (response.status === 500) {
+      // Parse error details
+      try {
+        const errorData = await response.json();
+        throw new Error(`API Error: ${errorData.message || 'Unknown error'}`);
+      } catch (parseError) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+    } else {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-
-    return response;
   }
 
-  /**
-   * Check if event should use sendBeacon
-   * @param {string} eventType Event type
-   * @returns {boolean} Should use sendBeacon
-   */
   shouldUseSendBeacon(eventType) {
     return ['session_end', 'page_unload'].includes(eventType);
   }
 
-  /**
-   * Flush queued events
-   */
   async flushQueue() {
     if (this.queue.length === 0) return;
 
@@ -439,24 +347,16 @@ class ApiTransport {
     for (const payload of queue) {
       const success = await this.send(payload);
       if (!success) {
-        // Re-queue if failed
         this.queue.push(payload);
       }
     }
   }
 
-  /**
-   * Get queue size
-   * @returns {number} Queue size
-   */
   getQueueSize() {
     return this.queue.length;
   }
 }
 
-/**
- * API Transport using Web Worker
- */
 class ApiWorkerTransport {
   constructor(config, logger) {
     this.config = config;
@@ -472,62 +372,46 @@ class ApiWorkerTransport {
     }
   }
 
-  /**
-   * Check if Web Workers are supported
-   */
   checkWorkerSupport() {
     return typeof Worker !== 'undefined';
   }
 
-  /**
-   * Initialize Web Worker
-   */
   initWorker() {
     try {
-      // Inline worker using Blob URL
       const workerCode = this.getWorkerCode();
       const blob = new Blob([workerCode], { type: 'application/javascript' });
       const workerUrl = URL.createObjectURL(blob);
       
       this.worker = new Worker(workerUrl);
       
-      // Listen for messages from worker
       this.worker.addEventListener('message', (event) => {
         this.handleWorkerMessage(event.data);
       });
       
-      // Listen for errors
       this.worker.addEventListener('error', (error) => {
         this.logger.error('Worker error:', error);
       });
       
-      // Initialize worker with config
       this.worker.postMessage({
         type: 'INIT',
         payload: {
           apiUrl: this.config.get('apiUrl'),
           trackerToken: this.config.get('trackerToken'),
           batchSize: 10,
-          batchInterval: 5000 // Flush every 5 seconds
+          batchInterval: 5000
         }
       });
       
-      // Setup online/offline detection
       this.setupOnlineListener();
       
-      this.logger.log('Web Worker initialized for event processing');
+      this.logger.log('Web Worker initialized for v2 event processing');
     } catch (error) {
       this.logger.error('Failed to initialize worker:', error);
       this.worker = null;
     }
   }
 
-  /**
-   * Get worker code as string
-   */
   getWorkerCode() {
-    // Return the worker code from event-worker.js as string
-    // In production, this would be bundled separately
     return `
       let config = null;
       let eventQueue = [];
@@ -583,17 +467,29 @@ class ApiWorkerTransport {
         eventQueue = [];
         
         try {
-          const response = await fetch(config.apiUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Tracker-Token': config.trackerToken
-            },
-            body: JSON.stringify({ events: batch, batch: true }),
-            keepalive: true
-          });
-          
-          if (!response.ok) throw new Error(\`HTTP \${response.status}\`);
+          // Send individual events
+          for (const event of batch) {
+            // Ensure URL always has trailing slash
+            let url = config.apiUrl;
+            if (!url.endsWith('/')) {
+              url = url + '/';
+            }
+            
+            const response = await fetch(url, {
+              method: 'POST',  // Explicitly set POST
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Tracker-Token': config.trackerToken
+              },
+              body: JSON.stringify(event),
+              keepalive: true,
+              redirect: 'error'  // Don't follow redirects
+            });
+            
+            if (response.status !== 202 && response.status !== 200) {
+              throw new Error(\`HTTP \${response.status}\`);
+            }
+          }
           
           self.postMessage({ type: 'FLUSH_SUCCESS', count: batch.length });
         } catch (error) {
@@ -604,19 +500,16 @@ class ApiWorkerTransport {
     `;
   }
 
-  /**
-   * Handle messages from worker
-   */
   handleWorkerMessage(data) {
     const { type, count, error, size } = data;
     
     switch (type) {
       case 'INIT_SUCCESS':
-        this.logger.log('Worker ready');
+        this.logger.log('Worker ready for v2 API');
         break;
       
       case 'FLUSH_SUCCESS':
-        this.logger.log(`Worker flushed ${count} events`);
+        this.logger.log(`Worker flushed ${count} v2 events`);
         break;
       
       case 'FLUSH_ERROR':
@@ -629,9 +522,6 @@ class ApiWorkerTransport {
     }
   }
 
-  /**
-   * Setup online/offline listener
-   */
   setupOnlineListener() {
     window.addEventListener('online', () => {
       this.worker?.postMessage({ type: 'ONLINE' });
@@ -642,12 +532,8 @@ class ApiWorkerTransport {
     });
   }
 
-  /**
-   * Send event (queued in worker)
-   */
   async send(payload) {
     if (!this.worker) {
-      // Fallback to direct fetch if worker not available
       return this.sendDirect(payload);
     }
     
@@ -656,12 +542,9 @@ class ApiWorkerTransport {
       payload
     });
     
-    return true; // Event queued in worker
+    return true;
   }
 
-  /**
-   * Direct send fallback (no worker)
-   */
   async sendDirect(payload) {
     try {
       const response = await fetch(this.config.get('apiUrl'), {
@@ -674,23 +557,17 @@ class ApiWorkerTransport {
         keepalive: true
       });
       
-      return response.ok;
+      return response.status === 202;
     } catch (error) {
       this.logger.error('Direct send failed:', error);
       return false;
     }
   }
 
-  /**
-   * Flush queue immediately
-   */
   async flushQueue() {
     this.worker?.postMessage({ type: 'FLUSH_QUEUE' });
   }
 
-  /**
-   * Get queue size
-   */
   getQueueSize() {
     if (!this.worker) return 0;
     
@@ -698,9 +575,6 @@ class ApiWorkerTransport {
     return this.queueSize;
   }
 
-  /**
-   * Terminate worker
-   */
   terminate() {
     if (this.worker) {
       this.worker.terminate();
@@ -711,21 +585,110 @@ class ApiWorkerTransport {
 }
 
 /**
- * Event tracker
+ * Extract UTM parameters from URL or provide defaults
+ * @returns {Object} UTM parameters object
  */
+function getUTMParams() {
+  if (typeof window === 'undefined') {
+    return getDefaultUTMParams();
+  }
+
+  const urlParams = new URLSearchParams(window.location.search);
+  
+  return {
+    utm_campaign: urlParams.get('utm_campaign') || getSessionStorage('utm_campaign') || 'direct',
+    utm_source: urlParams.get('utm_source') || getSessionStorage('utm_source') || 'direct',
+    utm_medium: urlParams.get('utm_medium') || getSessionStorage('utm_medium') || 'none',
+    utm_term: urlParams.get('utm_term') || getSessionStorage('utm_term') || '',
+    utm_content: urlParams.get('utm_content') || getSessionStorage('utm_content') || ''
+  };
+}
+
+/**
+ * Store UTM parameters in session storage for persistence
+ * @param {Object} utmParams UTM parameters
+ */
+function storeUTMParams(utmParams) {
+  if (typeof window === 'undefined') return;
+
+  Object.entries(utmParams).forEach(([key, value]) => {
+    if (value && value !== 'direct' && value !== 'none') {
+      try {
+        sessionStorage.setItem(key, value);
+      } catch (e) {
+        // Silent fail if sessionStorage is not available
+      }
+    }
+  });
+}
+
+/**
+ * Get UTM parameter from session storage
+ * @param {string} key Parameter key
+ * @returns {string|null} Parameter value
+ */
+function getSessionStorage(key) {
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    return sessionStorage.getItem(key);
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Get default UTM parameters for server-side or fallback
+ * @returns {Object} Default UTM parameters
+ */
+function getDefaultUTMParams() {
+  return {
+    utm_campaign: 'direct',
+    utm_source: 'direct',
+    utm_medium: 'none',
+    utm_term: '',
+    utm_content: ''
+  };
+}
+
+/**
+ * Generate unique event ID
+ * @returns {string} Unique event ID
+ */
+function generateEventId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  
+  return 'evt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
 class EventTracker {
   constructor(config, session, transport, logger) {
     this.config = config;
     this.session = session;
     this.transport = transport;
     this.logger = logger;
-    this.sentEvents = new Map(); // ← ADD: Track sent events to prevent duplicates
+    this.sentEvents = new Map();
+    this.utmParams = null;
+    
+    // Initialize and store UTM parameters
+    this.initializeUTMParams();
   }
 
   /**
-   * Send event to transport
+   * Initialize UTM parameters from URL
+   */
+  initializeUTMParams() {
+    this.utmParams = getUTMParams();
+    storeUTMParams(this.utmParams);
+    this.logger.log('UTM parameters initialized:', this.utmParams);
+  }
+
+  /**
+   * Send event with new v2 format
    * @param {string} event Event type
-   * @param {Object} data Event data
+   * @param {Object} data Additional event data
    */
   send(event, data = {}) {
     if (!this.session.isActive()) {
@@ -733,24 +696,42 @@ class EventTracker {
       return;
     }
 
-    const payload = {
-      event,
-      session_id: this.session.getId(),
-      tracker_token: this.config.get('trackerToken'),
-      timestamp: new Date().toISOString(),
-      ...data
+    // Map event types to v2 format
+    const eventTypeMapping = {
+      'session_start': 'page_view',
+      'page_view': 'page_view', 
+      'ping': 'page_view',
+      'custom_event': 'click',
+      'session_end': 'conversion',
+      'button_click': 'click',
+      'form_submit': 'conversion'
     };
 
-    // Create unique event key to prevent duplicates
+    const mappedEventType = eventTypeMapping[event] || 'click';
+    const eventId = generateEventId();
+
+    // Build v2 payload format
+    const payload = {
+      event: mappedEventType, // Maps to event_type in backend
+      session_id: this.session.getId(),
+      timestamp: new Date().toISOString(), // Maps to event_time in backend
+      tracker_token: this.config.get('trackerToken'), // Maps to api_key in backend
+      utm_params: this.utmParams, // MANDATORY for campaign resolution
+      event_id: eventId,
+      user_id: data.user_id || this.session.getId(), // Use session as fallback
+      page_url: typeof window !== 'undefined' ? window.location.href : data.page_url || '',
+      referrer: typeof document !== 'undefined' ? document.referrer : data.referrer || '',
+      ...data // Additional event-specific data
+    };
+
+    // Prevent duplicate events
     const eventKey = `${event}_${payload.timestamp}_${JSON.stringify(data)}`;
     
-    // Check if event was already sent in last 1 second
     if (this.sentEvents.has(eventKey)) {
       this.logger.warn('Duplicate event prevented:', event);
       return;
     }
 
-    // Mark event as sent
     this.sentEvents.set(eventKey, Date.now());
     
     // Clean up old entries after 2 seconds
@@ -758,12 +739,12 @@ class EventTracker {
       this.sentEvents.delete(eventKey);
     }, 2000);
 
-    // Send to transport
+    this.logger.log('Sending v2 event:', payload);
     this.transport.send(payload);
   }
 
   /**
-   * Track custom event
+   * Track custom event with v2 format
    * @param {string} eventName Custom event name
    * @param {Object} data Event data
    */
@@ -771,16 +752,23 @@ class EventTracker {
     this.send('custom_event', {
       event_name: eventName,
       event_data: data,
-      page_url: typeof window !== 'undefined' ? window.location.href : null
+      custom_event_type: eventName,
+      ...data
     });
     
     this.logger.log('Custom event tracked:', eventName);
   }
+
+  /**
+   * Update UTM parameters (e.g., for SPA navigation)
+   */
+  refreshUTMParams() {
+    this.utmParams = getUTMParams();
+    storeUTMParams(this.utmParams);
+    this.logger.log('UTM parameters refreshed:', this.utmParams);
+  }
 }
 
-/**
- * Ping mechanism for time tracking
- */
 class PingTracker {
   constructor(config, state, eventTracker, logger) {
     this.config = config;
@@ -790,11 +778,9 @@ class PingTracker {
     this.timer = null;
   }
 
-  /**
-   * Start ping timer
-   */
+  
   start() {
-    this.stop(); // Clear any existing timer
+    this.stop();
 
     const interval = this.config.get('pingInterval');
     
@@ -807,9 +793,7 @@ class PingTracker {
     this.logger.log(`Ping timer started. Interval: ${interval / 1000}s`);
   }
 
-  /**
-   * Stop ping timer
-   */
+  
   stop() {
     if (this.timer) {
       clearInterval(this.timer);
@@ -818,9 +802,7 @@ class PingTracker {
     }
   }
 
-  /**
-   * Send ping event
-   */
+  
   ping() {
     this.eventTracker.send('ping', {
       time_spent_seconds: this.state.get('timeSpent'),
@@ -829,25 +811,17 @@ class PingTracker {
     });
   }
 
-  /**
-   * Manually trigger ping
-   */
+  
   trigger() {
     this.ping();
   }
 
-  /**
-   * Check if timer is running
-   * @returns {boolean} Is running
-   */
+  
   isRunning() {
     return this.timer !== null;
   }
 }
 
-/**
- * Page view tracking
- */
 class PageViewTracker {
   constructor(config, state, eventTracker, logger) {
     this.config = config;
@@ -856,10 +830,7 @@ class PageViewTracker {
     this.logger = logger;
   }
 
-  /**
-   * Track page view
-   * @param {string} pagePath Page path (optional)
-   */
+  
   track(pagePath) {
     const pageInfo = getPageInfo();
     
@@ -873,9 +844,6 @@ class PageViewTracker {
   }
 }
 
-/**
- * Browser event listeners
- */
 class BrowserListeners {
   constructor(config, state, session, eventTracker, pingTracker, pageViewTracker, logger) {
     this.config = config;
@@ -887,23 +855,19 @@ class BrowserListeners {
     this.logger = logger;
   }
 
-  /**
-   * Setup all browser event listeners
-   */
   setup() {
     if (typeof window === 'undefined') return;
 
     this.setupUnloadListener();
     this.setupVisibilityListener();
     
+    this.setupClickTracking();
+    
     if (this.config.get('autoTrack')) {
       this.setupNavigationListeners();
     }
   }
 
-  /**
-   * Setup beforeunload listener
-   */
   setupUnloadListener() {
     window.addEventListener('beforeunload', () => {
       this.pingTracker.stop();
@@ -915,9 +879,6 @@ class BrowserListeners {
     });
   }
 
-  /**
-   * Setup visibility change listener
-   */
   setupVisibilityListener() {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
@@ -930,9 +891,48 @@ class BrowserListeners {
     });
   }
 
-  /**
-   * Setup navigation listeners for SPAs
-   */
+  setupClickTracking() {
+    document.addEventListener('click', (e) => {
+      const target = e.target;
+      
+      const elementInfo = {
+        tag: target.tagName.toLowerCase(),
+        id: target.id || null,
+        class: target.className || null,
+        text: target.innerText?.substring(0, 100) || null,
+        href: target.href || null
+      };
+
+      if (target.tagName === 'BUTTON' || target.closest('button')) {
+        this.eventTracker.send('button_click', {
+          ...elementInfo,
+          button_type: target.type || 'button'
+        });
+        this.logger.log('Button click tracked:', elementInfo);
+      }
+      
+      else if (target.tagName === 'A' || target.closest('a')) {
+        this.eventTracker.send('custom_event', {
+          event_name: 'link_click',
+          ...elementInfo,
+          external: target.hostname !== window.location.hostname
+        });
+        this.logger.log('Link click tracked:', elementInfo);
+      }
+      
+      else if (target.tagName === 'INPUT' && target.type === 'submit') {
+        this.eventTracker.send('form_submit', {
+          ...elementInfo,
+          form_id: target.form?.id || null,
+          form_name: target.form?.name || null
+        });
+        this.logger.log('Form submit tracked:', elementInfo);
+      }
+    }, true);
+
+    this.logger.log('Automatic click tracking enabled');
+  }
+
   setupNavigationListeners() {
     this.state.set('lastPath', window.location.pathname);
 
@@ -945,10 +945,8 @@ class BrowserListeners {
       }
     };
 
-    // Listen for history changes
     window.addEventListener('popstate', checkPathChange);
 
-    // Intercept pushState and replaceState
     const originalPushState = history.pushState;
     const originalReplaceState = history.replaceState;
 
@@ -966,9 +964,6 @@ class BrowserListeners {
   }
 }
 
-/**
- * CarbonCut SDK Main Class
- */
 class CarbonCutSDK {
   constructor() {
     this.logger = new Logger(false);
@@ -980,16 +975,12 @@ class CarbonCutSDK {
     this.pingTracker = null;
     this.pageViewTracker = null;
     this.browserListeners = null;
-    this.googleAds = null;
     this.autoInitAttempted = false;
   }
 
-  /**
-   * Extract tracker token and domain from script tag
-   * @returns {Object} Configuration from script tag
-   */
+  
   getScriptConfig() {
-    // if (typeof document === 'undefined') return null;
+    if (typeof document === 'undefined') return null;
 
     const scripts = document.getElementsByTagName('script');
     let scriptConfig = null;
@@ -998,12 +989,20 @@ class CarbonCutSDK {
       const src = script.getAttribute('src');
       
       if (src && (src.includes('carboncut.min.js') || src.includes('carboncut.js'))) {
+        // Get base URL from data attribute
+        let apiUrl = script.getAttribute('data-api-url') || 'http://127.0.0.1:8000/api/v1/events/';
+        
+        // Ensure trailing slash
+        if (!apiUrl.endsWith('/')) {
+          apiUrl += '/';
+        }
+        
         scriptConfig = {
           trackerToken: script.getAttribute('data-token') || script.getAttribute('data-tracker-token'),
-          apiUrl: script.getAttribute('data-api-url') || 'http://127.0.0.1:8000/api/v1/events/',
+          apiUrl: apiUrl,
           debug: script.getAttribute('data-debug') === 'true',
           domain: script.getAttribute('data-domain') || window.location.hostname,
-          useWorker: script.getAttribute('data-use-worker') !== 'false' // Default true
+          useWorker: script.getAttribute('data-use-worker') !== 'false'
         };
         break;
       }
@@ -1012,11 +1011,9 @@ class CarbonCutSDK {
     return scriptConfig;
   }
 
-  /**
-   * Auto-initialize from script tag attributes
-   */
+  
   autoInit() {
-    // Prevent multiple auto-init calls
+   
     if (this.autoInitAttempted || this.isInitializing) {
       this.logger.warn('Auto-init already attempted or in progress');
       return;
@@ -1037,9 +1034,7 @@ class CarbonCutSDK {
     this.isInitializing = false;
   }
 
-  /**
-   * Initialize the SDK
-   */
+  
   init(options = {}) {
     if (!isBrowser()) {
       this.logger.error('CarbonCut SDK can only be initialized in a browser environment');
@@ -1051,32 +1046,27 @@ class CarbonCutSDK {
       return false;
     }
 
-    // Initialize configuration
     if (!this.config.init(options)) {
       return false;
     }
 
-    // Set debug mode
     this.logger.setDebug(this.config.get('debug'));
 
-    // Check Do Not Track
     if (this.config.get('respectDoNotTrack') && navigator.doNotTrack === '1') {
       this.logger.warn('Do Not Track is enabled, tracking disabled');
       return false;
     }
 
-    // Initialize components
     this.session = new Session(this.config, this.logger);
     
-    // Use Worker Transport if supported, fallback to regular transport
-    const useWorker = this.config.get('useWorker') !== false; // Default true
+    const useWorker = this.config.get('useWorker') !== false;
     
     if (useWorker && typeof Worker !== 'undefined') {
       this.transport = new ApiWorkerTransport(this.config, this.logger);
-      this.logger.log('Using Web Worker for event processing');
+      this.logger.log('Using Web Worker for v2 event processing');
     } else {
       this.transport = new ApiTransport(this.config, this.logger);
-      this.logger.log('Using main thread for event processing');
+      this.logger.log('Using main thread for v2 event processing');
     }
     
     this.eventTracker = new EventTracker(this.config, this.session, this.transport, this.logger);
@@ -1092,44 +1082,23 @@ class CarbonCutSDK {
       this.logger
     );
 
-
-    // Start session
     this.session.start();
-
-    // Send session start event
     this.eventTracker.send('session_start', getBrowserMetadata());
-
-    // Start ping timer
     this.pingTracker.start();
-
-    // Setup event listeners
     this.browserListeners.setup();
-
-    // Mark as initialized
     this.state.set('isInitialized', true);
 
-    this.logger.log('CarbonCut SDK initialized successfully', {
+    this.logger.log('CarbonCut SDK v2 initialized successfully', {
       sessionId: this.session.getId(),
       trackerToken: this.config.get('trackerToken'),
-      workerEnabled: useWorker
+      workerEnabled: useWorker,
+      apiVersion: 'v2'
     });
-
-    // Auto-trigger Google Ads OAuth if enabled
-    if (this.config.get('autoAuth')) {
-      // Run OAuth in next tick to not block initialization
-      setTimeout(() => {
-        this.initiateGoogleAdsAuth();
-      }, 0);
-    }
 
     return true;
   }
 
-  /**
-   * Track a custom event
-   * @param {string} eventName Event name
-   * @param {Object} data Event data
-   */
+  
   trackEvent(eventName, data = {}) {
     if (!this.state.get('isInitialized')) {
       this.logger.error('SDK not initialized. Call init() first');
@@ -1139,10 +1108,7 @@ class CarbonCutSDK {
     this.eventTracker.trackCustomEvent(eventName, data);
   }
 
-  /**
-   * Track a page view
-   * @param {string} pagePath Page path
-   */
+  
   trackPageView(pagePath) {
     if (!this.state.get('isInitialized')) {
       this.logger.error('SDK not initialized. Call init() first');
@@ -1152,9 +1118,7 @@ class CarbonCutSDK {
     this.pageViewTracker.track(pagePath);
   }
 
-  /**
-   * Manually trigger a ping
-   */
+  
   ping() {
     if (!this.state.get('isInitialized')) {
       this.logger.error('SDK not initialized. Call init() first');
@@ -1164,65 +1128,53 @@ class CarbonCutSDK {
     this.pingTracker.trigger();
   }
 
-  /**
-   * Get session information
-   * @returns {Object} Session info
-   */
+  
   getSessionInfo() {
     return {
       sessionId: this.session?.getId() || null,
       trackerToken: this.config.get('trackerToken'),
       timeSpent: this.state.get('timeSpent'),
       isInitialized: this.state.get('isInitialized'),
-      queueSize: this.transport?.getQueueSize() || 0
+      queueSize: this.transport?.getQueueSize() || 0,
+      apiVersion: 'v2',
+      utmParams: this.eventTracker?.utmParams || null
     };
   }
 
-  /**
-   * Enable debug mode
-   */
+  
   enableDebug() {
     this.logger.setDebug(true);
     this.config.set('debug', true);
   }
 
-  /**
-   * Disable debug mode
-   */
+  
   disableDebug() {
     this.logger.setDebug(false);
     this.config.set('debug', false);
   }
 
-  /**
-   * Cleanup and terminate
-   */
+  
   destroy() {
     this.pingTracker?.stop();
-    this.transport?.terminate?.(); // Terminate worker if exists
+    this.transport?.terminate?.();
     this.session?.end();
     this.state.reset();
     this.logger.log('SDK destroyed');
   }
 }
 
-// Create singleton instance
 const carbonCut = new CarbonCutSDK();
 
-// Auto-initialize when DOM is ready (ONLY ONCE)
 if (typeof document !== 'undefined') {
-  // Only attach listener if document is still loading
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       carbonCut.autoInit();
-    }, { once: true }); // ← ADD 'once: true' to ensure single execution
+    }, { once: true });
   } else {
-    // DOM already loaded, init immediately
     carbonCut.autoInit();
   }
 }
 
-// Export for different module systems
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = carbonCut;
 }
