@@ -598,9 +598,9 @@ function getUTMParams() {
   const urlParams = new URLSearchParams(window.location.search);
   
   return {
-    utm_campaign: urlParams.get('utm_campaign') || getSessionStorage('utm_campaign') || 'direct',
-    utm_source: urlParams.get('utm_source') || getSessionStorage('utm_source') || 'direct',
-    utm_medium: urlParams.get('utm_medium') || getSessionStorage('utm_medium') || 'none',
+    utm_campaign: urlParams.get('utm_campaign') || getSessionStorage('utm_campaign') || '',
+    utm_source: urlParams.get('utm_source') || getSessionStorage('utm_source') || '',
+    utm_medium: urlParams.get('utm_medium') || getSessionStorage('utm_medium') || '',
     utm_term: urlParams.get('utm_term') || getSessionStorage('utm_term') || '',
     utm_content: urlParams.get('utm_content') || getSessionStorage('utm_content') || ''
   };
@@ -645,9 +645,9 @@ function getSessionStorage(key) {
  */
 function getDefaultUTMParams() {
   return {
-    utm_campaign: 'direct',
-    utm_source: 'direct',
-    utm_medium: 'none',
+    utm_campaign: '',
+    utm_source: '',
+    utm_medium: '',
     utm_term: '',
     utm_content: ''
   };
@@ -673,7 +673,8 @@ class EventTracker {
     this.logger = logger;
     this.sentEvents = new Map();
     this.utmParams = null;
-    
+    this.conversionRulesApplied = false;
+
     // Initialize and store UTM parameters
     this.initializeUTMParams();
   }
@@ -684,7 +685,7 @@ class EventTracker {
   initializeUTMParams() {
     this.utmParams = getUTMParams();
     storeUTMParams(this.utmParams);
-    this.logger.log('UTM parameters initialized:', this.utmParams);
+    this.logger.log("UTM parameters initialized:", this.utmParams);
   }
 
   /**
@@ -694,22 +695,27 @@ class EventTracker {
    */
   send(event, data = {}) {
     if (!this.session.isActive()) {
-      this.logger.error('Cannot send event without active session');
+      this.logger.error("Cannot send event without active session");
       return;
     }
-
-    // Map event types to v2 format
+    if (!this.state.get("isInitialized")) {
+      this.logger.error(
+        "Cannot send event: SDK is not initialized or API key is invalid."
+      );
+      return false;
+    }
     const eventTypeMapping = {
-      'session_start': 'page_view',
-      'page_view': 'page_view', 
-      'ping': 'page_view',
-      'custom_event': 'click',
-      'session_end': 'conversion',
-      'button_click': 'click',
-      'form_submit': 'conversion'
+      session_start: "page_view",
+      page_view: "page_view",
+      ping: "page_view",
+      custom_event: "click",
+      session_end: "conversion",
+      button_click: "click",
+      form_submit: "conversion",
+      conversion: "conversion",
     };
 
-    const mappedEventType = eventTypeMapping[event] || 'click';
+    const mappedEventType = eventTypeMapping[event] || "click";
     const eventId = generateEventId();
 
     // Build v2 payload format
@@ -717,32 +723,43 @@ class EventTracker {
       event: mappedEventType, // Maps to event_type in backend
       session_id: this.session.getId(),
       timestamp: new Date().toISOString(), // Maps to event_time in backend
-      tracker_token: this.config.get('trackerToken'), // Maps to api_key in backend
+      tracker_token: this.config.get("trackerToken"), // Maps to api_key in backend
       utm_params: this.utmParams, // MANDATORY for campaign resolution
       event_id: eventId,
       user_id: data.user_id || this.session.getId(), // Use session as fallback
-      page_url: typeof window !== 'undefined' ? window.location.href : data.page_url || '',
-      referrer: typeof document !== 'undefined' ? document.referrer : data.referrer || '',
-      ...data // Additional event-specific data
+      page_url:
+        typeof window !== "undefined"
+          ? window.location.href
+          : data.page_url || "",
+      referrer:
+        typeof document !== "undefined"
+          ? document.referrer
+          : data.referrer || "",
+      ...data, // Additional event-specific data
     };
 
     // Prevent duplicate events
     const eventKey = `${event}_${payload.timestamp}_${JSON.stringify(data)}`;
-    
+
     if (this.sentEvents.has(eventKey)) {
-      this.logger.warn('Duplicate event prevented:', event);
+      this.logger.warn("Duplicate event prevented:", event);
       return;
     }
 
     this.sentEvents.set(eventKey, Date.now());
-    
+
     // Clean up old entries after 2 seconds
     setTimeout(() => {
       this.sentEvents.delete(eventKey);
     }, 2000);
 
-    this.logger.log('Sending v2 event:', payload);
+    this.logger.log("Sending v2 event:", payload);
     this.transport.send(payload);
+
+    // ✅ CHECK URL CONVERSIONS ON EVERY PAGE VIEW
+    if (event === "page_view" || event === "session_start") {
+      this.checkUrlConversions();
+    }
   }
 
   /**
@@ -751,14 +768,14 @@ class EventTracker {
    * @param {Object} data Event data
    */
   trackCustomEvent(eventName, data = {}) {
-    this.send('custom_event', {
+    this.send("custom_event", {
       event_name: eventName,
       event_data: data,
       custom_event_type: eventName,
-      ...data
+      ...data,
     });
-    
-    this.logger.log('Custom event tracked:', eventName);
+
+    this.logger.log("Custom event tracked:", eventName);
   }
 
   /**
@@ -767,7 +784,114 @@ class EventTracker {
   refreshUTMParams() {
     this.utmParams = getUTMParams();
     storeUTMParams(this.utmParams);
-    this.logger.log('UTM parameters refreshed:', this.utmParams);
+    this.logger.log("UTM parameters refreshed:", this.utmParams);
+  }
+  applyConversionRules() {
+    const rules = this.config.get("conversionRules") || [];
+
+    if (!rules.length) {
+      this.logger.warn(
+        "No conversion rules found. Skipping conversion tracking."
+      );
+      return;
+    }
+
+    this.logger.log(`📋 Applying ${rules.length} conversion rules`);
+
+    // Apply click-based rules (set up event listeners)
+    rules.forEach((rule) => {
+      if (rule.type === "click") {
+        this.trackClickConversion(rule);
+      }
+    });
+
+    // Check URL-based rules immediately
+    this.checkUrlConversions();
+
+    this.conversionRulesApplied = true;
+  }
+
+  // ✅ NEW METHOD: Check URL conversions (called on every page view)
+  checkUrlConversions() {
+    const rules = this.config.get("conversionRules") || [];
+    const urlRules = rules.filter((r) => r.type === "url");
+
+    if (urlRules.length === 0) return;
+
+    const currentUrl = window.location.href;
+    const currentPath = window.location.pathname;
+
+    this.logger.log("🔍 Checking URL conversions for:", currentPath);
+
+    urlRules.forEach((rule) => {
+      let matched = false;
+      const pattern = rule.pattern;
+
+      switch (rule.match_type) {
+        case "contains":
+          matched =
+            currentUrl.includes(pattern) || currentPath.includes(pattern);
+          break;
+        case "exact":
+          matched = currentUrl === pattern || currentPath === pattern;
+          break;
+        case "starts_with":
+          matched =
+            currentUrl.startsWith(pattern) || currentPath.startsWith(pattern);
+          break;
+        case "ends_with":
+          matched =
+            currentUrl.endsWith(pattern) || currentPath.endsWith(pattern);
+          break;
+        case "regex":
+          try {
+            const regex = new RegExp(pattern);
+            matched = regex.test(currentUrl) || regex.test(currentPath);
+          } catch (e) {
+            this.logger.error("Invalid regex pattern:", pattern, e);
+          }
+          break;
+      }
+
+      if (matched) {
+        this.logger.log("🎯 URL conversion matched:", rule);
+        this.send("conversion", {
+          conversion_type: "url",
+          conversion_label: rule.name,
+          conversion_url: currentUrl,
+          conversion_rule_id: rule.id,
+          match_type: rule.match_type,
+          pattern: pattern,
+        });
+      }
+    });
+  }
+
+  trackUrlConversion(rule) {
+    // This is now handled by checkUrlConversions()
+    this.logger.warn(
+      "trackUrlConversion is deprecated, use checkUrlConversions instead"
+    );
+  }
+
+  trackClickConversion(rule) {
+    this.logger.log("Setting up click conversion listener for:", rule.selector);
+
+    document.addEventListener("click", (event) => {
+      const target = event.target.closest(rule.selector);
+
+      if (target) {
+        this.logger.log("🎯 Click conversion matched:", rule);
+        this.send("conversion", {
+          conversion_type: "click",
+          conversion_label: rule.name,
+          conversion_selector: rule.selector,
+          conversion_element: target.tagName,
+          conversion_rule_id: rule.id,
+          element_text: target.innerText?.substring(0, 100),
+        });
+      }
+    });
   }
 }
 
@@ -978,33 +1102,40 @@ class CarbonCutSDK {
     this.pageViewTracker = null;
     this.browserListeners = null;
     this.autoInitAttempted = false;
+    this.conversionRules = [];
   }
 
-  
   getScriptConfig() {
-    if (typeof document === 'undefined') return null;
+    if (typeof document === "undefined") return null;
 
-    const scripts = document.getElementsByTagName('script');
+    const scripts = document.getElementsByTagName("script");
     let scriptConfig = null;
 
     for (let script of scripts) {
-      const src = script.getAttribute('src');
-      
-      if (src && (src.includes('carboncut.min.js') || src.includes('carboncut.js'))) {
+      const src = script.getAttribute("src");
+
+      if (
+        src &&
+        (src.includes("carboncut.min.js") || src.includes("carboncut.js"))
+      ) {
         // Get base URL from data attribute
-        let apiUrl = script.getAttribute('data-api-url') || 'http://127.0.0.1:8000/api/v1/events/';
-        
+        let apiUrl =
+          script.getAttribute("data-api-url") ||
+          "http://127.0.0.1:8000/api/v1/events/";
+
         // Ensure trailing slash
-        if (!apiUrl.endsWith('/')) {
-          apiUrl += '/';
+        if (!apiUrl.endsWith("/")) {
+          apiUrl += "/";
         }
-        
+
         scriptConfig = {
-          trackerToken: script.getAttribute('data-token') || script.getAttribute('data-tracker-token'),
+          trackerToken:
+            script.getAttribute("data-token") ||
+            script.getAttribute("data-tracker-token"),
           apiUrl: apiUrl,
-          debug: script.getAttribute('data-debug') === 'true',
-          domain: script.getAttribute('data-domain') || window.location.hostname,
-          useWorker: script.getAttribute('data-use-worker') !== 'false'
+          debug: script.getAttribute("data-debug") === "true",
+          domain: script.getAttribute("data-domain") || window.location.origin, // Default to current domain
+          useWorker: script.getAttribute("data-use-worker") !== "false",
         };
         break;
       }
@@ -1013,21 +1144,88 @@ class CarbonCutSDK {
     return scriptConfig;
   }
 
-  
+  async fetchConversionRules() {
+    const apiUrl = this.config.get("apiUrl");
+    const trackerToken = this.config.get("trackerToken");
+
+    if (!trackerToken) {
+      this.logger.error(
+        "Tracker token is missing. Cannot fetch conversion rules."
+      );
+      return false; // Stop further processing
+    }
+
+    try {
+      const configUrl = `${apiUrl.replace(
+        "/events/",
+        "/keys/config"
+      )}?api_key=${trackerToken}`;
+
+      this.logger.log("Fetching conversion rules from:", configUrl);
+
+      const response = await fetch(configUrl, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch conversion rules: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const data = await response.json();
+
+      if (!data.success) {
+        this.logger.error("Invalid API key:", trackerToken);
+        return false; // Stop further processing
+      }
+
+      this.conversionRules = data.conversion_rules || [];
+      this.config.set("conversionRules", this.conversionRules);
+      this.logger.log("✅ Fetched conversion rules:", this.conversionRules);
+
+      // Apply rules after fetching
+      if (this.eventTracker && this.conversionRules.length > 0) {
+        this.eventTracker.applyConversionRules();
+      }
+
+      return true; // API key is valid
+    } catch (error) {
+      this.logger.error("Error fetching conversion rules:", error);
+      return false; // Stop further processing
+    }
+  }
+
   autoInit() {
-   
     if (this.autoInitAttempted || this.isInitializing) {
-      this.logger.warn('Auto-init already attempted or in progress');
+      this.logger.warn("Auto-init already attempted or in progress");
       return;
     }
-    
+
     this.autoInitAttempted = true;
     this.isInitializing = true;
 
     const scriptConfig = this.getScriptConfig();
-    
+
     if (!scriptConfig || !scriptConfig.trackerToken) {
-      console.error('CarbonCut: No tracker token found. Add data-token attribute to script tag.');
+      console.error(
+        "CarbonCut: No tracker token found. Add data-token attribute to script tag."
+      );
+      this.isInitializing = false;
+      return;
+    }
+
+    // Validate domain before initialization
+    const currentDomain = window.location.origin; // Get the current domain (protocol + hostname + port)
+    const configuredDomain = scriptConfig.domain;
+
+    if (configuredDomain && configuredDomain !== currentDomain) {
+      console.error(
+        `CarbonCut: Invalid domain. Configured domain (${configuredDomain}) does not match the current domain (${currentDomain}).`
+      );
       this.isInitializing = false;
       return;
     }
@@ -1036,152 +1234,156 @@ class CarbonCutSDK {
     this.isInitializing = false;
   }
 
-  
-  init(options = {}) {
-    if (!isBrowser()) {
-      this.logger.error('CarbonCut SDK can only be initialized in a browser environment');
-      return false;
-    }
-
-    if (this.state.get('isInitialized')) {
-      this.logger.warn('CarbonCut is already initialized');
-      return false;
-    }
-
-    if (!this.config.init(options)) {
-      return false;
-    }
-
-    this.logger.setDebug(this.config.get('debug'));
-
-    if (this.config.get('respectDoNotTrack') && navigator.doNotTrack === '1') {
-      this.logger.warn('Do Not Track is enabled, tracking disabled');
-      return false;
-    }
-
-    this.session = new Session(this.config, this.logger);
-    
-    const useWorker = this.config.get('useWorker') !== false;
-    
-    if (useWorker && typeof Worker !== 'undefined') {
-      this.transport = new ApiWorkerTransport(this.config, this.logger);
-      this.logger.log('Using Web Worker for v2 event processing');
-    } else {
-      this.transport = new ApiTransport(this.config, this.logger);
-      this.logger.log('Using main thread for v2 event processing');
-    }
-    
-    this.eventTracker = new EventTracker(this.config, this.session, this.transport, this.logger);
-    this.pingTracker = new PingTracker(this.config, this.state, this.eventTracker, this.logger);
-    this.pageViewTracker = new PageViewTracker(this.config, this.state, this.eventTracker, this.logger);
-    this.browserListeners = new BrowserListeners(
-      this.config,
-      this.state,
-      this.session,
-      this.eventTracker,
-      this.pingTracker,
-      this.pageViewTracker,
-      this.logger
-    );
-
-    this.session.start();
-    this.eventTracker.send('session_start', getBrowserMetadata());
-    this.pingTracker.start();
-    this.browserListeners.setup();
-    this.state.set('isInitialized', true);
-
-    this.logger.log('CarbonCut SDK v2 initialized successfully', {
-      sessionId: this.session.getId(),
-      trackerToken: this.config.get('trackerToken'),
-      workerEnabled: useWorker,
-      apiVersion: 'v2'
-    });
-
-    return true;
+  async init(options = {}) {
+  if (!isBrowser()) {
+    this.logger.error("CarbonCut SDK can only be initialized in a browser environment");
+    return false;
   }
 
-  
+  if (this.state.get("isInitialized")) {
+    this.logger.warn("CarbonCut is already initialized");
+    return false;
+  }
+
+  if (!this.config.init(options)) {
+    return false;
+  }
+
+  this.logger.setDebug(this.config.get("debug"));
+
+  if (this.config.get("respectDoNotTrack") && navigator.doNotTrack === "1") {
+    this.logger.warn("Do Not Track is enabled, tracking disabled");
+    return false;
+  }
+
+  // Validate API key
+  const isValidApiKey = await this.fetchConversionRules();
+  if (!isValidApiKey) {
+    this.logger.error("Initialization aborted due to invalid API key.");
+    return false; // Stop further processing
+  }
+
+  this.session = new Session(this.config, this.logger);
+
+  const useWorker = this.config.get("useWorker") !== false;
+
+  if (useWorker && typeof Worker !== "undefined") {
+    this.transport = new ApiWorkerTransport(this.config, this.logger);
+    this.logger.log("Using Web Worker for v2 event processing");
+  } else {
+    this.transport = new ApiTransport(this.config, this.logger);
+    this.logger.log("Using main thread for v2 event processing");
+  }
+
+  this.eventTracker = new EventTracker(this.config, this.session, this.transport, this.logger);
+  this.pingTracker = new PingTracker(this.config, this.state, this.eventTracker, this.logger);
+  this.pageViewTracker = new PageViewTracker(this.config, this.state, this.eventTracker, this.logger);
+  this.browserListeners = new BrowserListeners(
+    this.config,
+    this.state,
+    this.session,
+    this.eventTracker,
+    this.pingTracker,
+    this.pageViewTracker,
+    this.logger
+  );
+
+  this.session.start();
+  this.eventTracker.send("session_start", getBrowserMetadata());
+  this.pingTracker.start();
+  this.browserListeners.setup();
+  this.state.set("isInitialized", true);
+
+  this.logger.log("CarbonCut SDK v2 initialized successfully", {
+    sessionId: this.session.getId(),
+    trackerToken: this.config.get("trackerToken"),
+    workerEnabled: useWorker,
+    apiVersion: "v2",
+  });
+
+  return true;
+}
+
   trackEvent(eventName, data = {}) {
-    if (!this.state.get('isInitialized')) {
-      this.logger.error('SDK not initialized. Call init() first');
+    if (!this.state.get("isInitialized")) {
+      this.logger.error("SDK not initialized. Call init() first");
       return;
     }
 
     this.eventTracker.trackCustomEvent(eventName, data);
   }
 
-  
   trackPageView(pagePath) {
-    if (!this.state.get('isInitialized')) {
-      this.logger.error('SDK not initialized. Call init() first');
+    if (!this.state.get("isInitialized")) {
+      this.logger.error("SDK not initialized. Call init() first");
       return;
     }
 
     this.pageViewTracker.track(pagePath);
   }
 
-  
   ping() {
-    if (!this.state.get('isInitialized')) {
-      this.logger.error('SDK not initialized. Call init() first');
+    if (!this.state.get("isInitialized")) {
+      this.logger.error("SDK not initialized. Call init() first");
       return;
     }
 
     this.pingTracker.trigger();
   }
 
-  
   getSessionInfo() {
     return {
       sessionId: this.session?.getId() || null,
-      trackerToken: this.config.get('trackerToken'),
-      timeSpent: this.state.get('timeSpent'),
-      isInitialized: this.state.get('isInitialized'),
+      trackerToken: this.config.get("trackerToken"),
+      timeSpent: this.state.get("timeSpent"),
+      isInitialized: this.state.get("isInitialized"),
       queueSize: this.transport?.getQueueSize() || 0,
-      apiVersion: 'v2',
-      utmParams: this.eventTracker?.utmParams || null
+      apiVersion: "v2",
+      utmParams: this.eventTracker?.utmParams || null,
+      conversionRules: this.conversionRules, // Add conversion rules to session info
     };
   }
 
-  
   enableDebug() {
     this.logger.setDebug(true);
-    this.config.set('debug', true);
+    this.config.set("debug", true);
   }
 
-  
   disableDebug() {
     this.logger.setDebug(false);
-    this.config.set('debug', false);
+    this.config.set("debug", false);
   }
 
-  
   destroy() {
     this.pingTracker?.stop();
     this.transport?.terminate?.();
     this.session?.end();
     this.state.reset();
-    this.logger.log('SDK destroyed');
+    this.logger.log("SDK destroyed");
   }
 }
 
 const carbonCut = new CarbonCutSDK();
 
-if (typeof document !== 'undefined') {
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      carbonCut.autoInit();
-    }, { once: true });
+if (typeof document !== "undefined") {
+  if (document.readyState === "loading") {
+    document.addEventListener(
+      "DOMContentLoaded",
+      () => {
+        carbonCut.autoInit();
+      },
+      { once: true }
+    );
   } else {
     carbonCut.autoInit();
   }
 }
 
-if (typeof module !== 'undefined' && module.exports) {
+if (typeof module !== "undefined" && module.exports) {
   module.exports = carbonCut;
 }
 
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   window.CarbonCut = carbonCut;
 }
 
